@@ -60,12 +60,38 @@ contract("Purchase", function () {
   });
 
   it("Buyer confirm received", async function(){
-    // test here
+    let expectedBalance = await web3.eth.getBalance(Purchase.options.address);
+    
+    let result = await Purchase.methods.confirmReceived().send({from: buyerAddress});
+    let contractState = await Purchase.state();
+    let contractBalance = await web3.eth.getBalance(Purchase.options.address);
+    
+    assert.ok(contractState == state["INACTIVE"]);
+    assert.ok(contractBalance == (expectedBalance - price));
+    assert.eventEmitted(result, "ItemReceived", {});
   })
 
   it("Seller aborts item", async function(){
-    // test here
-  })
+    await assert.reverts(Purchase.methods.abort(), {
+      from: sellerAddress
+    }, "Returned error: VM Exception while processing transaction: revert Invalid state")
+
+    let newPurchase = await Purchase.deploy({
+      arguments: [price]
+    }).send()
+
+    let contractStateBefore = await newPurchase.methods.state().call();
+    assert.ok(contractStateBefore == state["CREATED"]);
+    
+    let result = await newPurchase.methods.abort().send({from: sellerAddress})
+    
+    let contractBalance = await web3.eth.getBalance(newPurchase.options.address);
+    let contractStateAfter = await newPurchase.methods.state().call();
+    
+    assert.ok(contractStateAfter == state["INACTIVE"]);
+    assert.ok(contractBalance == 0);
+    assert.eventEmitted(result, "Aborted", {});
+})
 
   // it("set storage value", async function () {
   //   await SimpleStorage.methods.set(150).send({from: web3.eth.defaultAccount});
